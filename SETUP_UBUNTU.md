@@ -19,19 +19,37 @@ ssh your-username@10.251.152.156
 # Update package list
 sudo apt update
 
-# Install Python 3 and pip (if not already installed)
-sudo apt install -y python3 python3-pip
+# Install Python 3, pip, and venv (if not already installed)
+sudo apt install -y python3 python3-pip python3-venv
 
 # Navigate to project directory
 cd ~/server-net
 
+# Create a virtual environment
+python3 -m venv venv
+
+# Activate the virtual environment
+source venv/bin/activate
+
 # Install Python dependencies
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
+
+**Note:** You'll need to activate the virtual environment each time you want to run the app manually:
+```bash
+source venv/bin/activate
+python3 app.py
+```
+
+Or if using the systemd service, we'll update the service file to use the virtual environment.
 
 ### 4. Test run (optional)
 Run it once to make sure everything works:
 ```bash
+# Make sure virtual environment is activated
+source venv/bin/activate
+
+# Run the app
 python3 app.py
 ```
 
@@ -50,7 +68,7 @@ Press `Ctrl+C` to stop it.
 sudo nano /etc/systemd/system/network-monitor.service
 ```
 
-**Copy and paste this** (replace `YOUR_USERNAME` with your actual username and `/path/to/server-net` with actual path):
+**Copy and paste this** (replace `YOUR_USERNAME` with your actual username):
 ```ini
 [Unit]
 Description=Network Monitor Application
@@ -60,7 +78,7 @@ After=network.target
 Type=simple
 User=YOUR_USERNAME
 WorkingDirectory=/home/YOUR_USERNAME/server-net
-ExecStart=/usr/bin/python3 /home/YOUR_USERNAME/server-net/app.py
+ExecStart=/home/YOUR_USERNAME/server-net/venv/bin/python3 /home/YOUR_USERNAME/server-net/app.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -69,6 +87,8 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 ```
+
+**Note:** This uses the Python from the virtual environment (`venv/bin/python3`), so make sure you've created the venv and installed dependencies first!
 
 **Enable and start the service:**
 ```bash

@@ -6,7 +6,9 @@ After=network.target
 Type=simple
 User=YOUR_USERNAME
 WorkingDirectory=/path/to/server-net
-ExecStart=/usr/bin/python3 /path/to/server-net/app.py
+# If using virtual environment, use: /path/to/server-net/venv/bin/python3
+# If not using venv, use: /usr/bin/python3
+ExecStart=/path/to/server-net/venv/bin/python3 /path/to/server-net/app.py
 Restart=always
 RestartSec=10
 StandardOutput=journal

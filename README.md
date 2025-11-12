@@ -29,28 +29,45 @@ sudo apt install -y python3 python3-pip
 cd /path/to/server-net
 ```
 
-3. **Install Python dependencies:**
+3. **Create and activate a virtual environment** (recommended to avoid "externally managed" errors):
 ```bash
-pip3 install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-   Or if you prefer to install for the current user only:
+4. **Install Python dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+   **Alternative:** If you prefer not to use a virtual environment, you can install to your user directory:
 ```bash
 pip3 install --user -r requirements.txt
 ```
 
-4. **Make sure the server IP in `app.py` matches your server's IP address** (currently set to `10.251.152.156`)
+   **Note:** When using a virtual environment, you'll need to activate it before running:
+   ```bash
+   source venv/bin/activate
+   python3 app.py
+   ```
+
+5. **Make sure the server IP in `app.py` matches your server's IP address** (currently set to `10.251.152.156`)
 
 ## Running the Application
 
 ### Option 1: Run directly in terminal
 
-1. **Start the Flask server:**
+1. **Activate virtual environment** (if using one):
+```bash
+source venv/bin/activate
+```
+
+2. **Start the Flask server:**
 ```bash
 python3 app.py
 ```
 
-2. **Access from your browser:**
+3. **Access from your browser:**
 ```
 http://10.251.152.156:5000
 ```
@@ -79,13 +96,15 @@ After=network.target
 Type=simple
 User=your-username
 WorkingDirectory=/path/to/server-net
-ExecStart=/usr/bin/python3 /path/to/server-net/app.py
+ExecStart=/path/to/server-net/venv/bin/python3 /path/to/server-net/app.py
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+   **Note:** If using a virtual environment, use `venv/bin/python3` in ExecStart. If not using venv, use `/usr/bin/python3`.
 
 3. **Replace placeholders:**
    - `your-username` with your Ubuntu username
@@ -120,8 +139,9 @@ sudo apt install screen
 screen -S network-monitor
 ```
 
-3. **Run the application:**
+3. **Activate virtual environment and run the application:**
 ```bash
+source venv/bin/activate
 python3 app.py
 ```
 
