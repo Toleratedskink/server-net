@@ -13,7 +13,41 @@ app = Flask(__name__)
 CORS(app)
 
 # Server IP configuration
-SERVER_IP = "10.251.152.156"
+# You can set this manually, or leave as None to auto-detect
+CONFIGURED_SERVER_IP = "10.251.152.130"  # Server and VM IP
+
+def get_server_ip():
+    """Get the server IP - use configured value or auto-detect"""
+    if CONFIGURED_SERVER_IP:
+        # Verify the configured IP exists on this system
+        interfaces = psutil.net_if_addrs()
+        for interface_name, addrs in interfaces.items():
+            for addr in addrs:
+                if addr.family == socket.AF_INET and addr.address == CONFIGURED_SERVER_IP:
+                    return CONFIGURED_SERVER_IP
+        
+        # If configured IP not found, auto-detect
+        print(f"Warning: Configured IP {CONFIGURED_SERVER_IP} not found on this system. Auto-detecting...")
+    
+    # Auto-detect: get the first non-loopback IPv4 address
+    interfaces = psutil.net_if_addrs()
+    for interface_name, addrs in interfaces.items():
+        # Skip loopback and docker interfaces
+        if 'lo' in interface_name.lower() or 'docker' in interface_name.lower():
+            continue
+        for addr in addrs:
+            if addr.family == socket.AF_INET:
+                ip = addr.address
+                # Skip localhost and link-local addresses
+                if not ip.startswith('127.') and not ip.startswith('169.254.'):
+                    print(f"Auto-detected server IP: {ip}")
+                    return ip
+    
+    # Fallback to configured IP or localhost
+    return CONFIGURED_SERVER_IP or "127.0.0.1"
+
+# Get the actual server IP
+SERVER_IP = get_server_ip()
 
 # Network information
 network_info = {
