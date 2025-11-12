@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .network-container {
+            position: relative;
+            min-height: 600px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .host-node {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 10;
+            border: 4px solid #fff;
+            transition: all 0.3s ease;
+        }
+
+        .host-node:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+
+        .host-label {
+            font-weight: bold;
+            font-size: 0.9em;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        .host-ip {
+            font-size: 0.75em;
+            opacity: 0.9;
+        }
+
+        .device-node {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            border: 3px solid #fff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .device-node:hover {
+            transform: scale(1.15);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.3);
+        }
+
+        .device-node.online {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .device-label {
+            font-weight: bold;
+            font-size: 0.8em;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        .device-ip {
+            font-size: 0.7em;
+            opacity: 0.9;
+        }
+
+        .connection-line {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.3);
+            height: 2px;
+            transform-origin: left center;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+
+        .connection-line.active {
+            background: rgba(255, 255, 255, 0.6);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .activity-indicator {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4ade80;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.8);
+            animation: pulse 2s infinite;
+        }
+
+        .activity-indicator.inactive {
+            background: #94a3b8;
+            box-shadow: none;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(1.2);
+            }
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 25px;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            font-size: 0.9em;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌐 Network Monitor</h1>
+            <div class="subtitle">Real-time Network Topology Visualization</div>
+        </header>
+
+        <div class="network-container" id="networkContainer">
+            <div class="loading">
+                <div class="spinner"></div>
+                <div>Scanning network...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="status-dot"></div>
+            <span>Live</span>
+        </div>
+        <div class="status-item">
+            <span>Devices: <strong id="deviceCount">0</strong></span>
+        </div>
+        <div class="status-item">
+            <span>Last Scan: <strong id="lastScan">-</strong></span>
+        </div>
+    </div>
+
+    <script>
+        const networkContainer = document.getElementById('networkContainer');
+        const deviceCountEl = document.getElementById('deviceCount');
+        const lastScanEl = document.getElementById('lastScan');
+        
+        let hostNode = null;
+        let deviceNodes = new Map();
+        let connectionLines = new Map();
+
+        function updateNetwork(data) {
+            // Clear loading
+            if (networkContainer.querySelector('.loading')) {
+                networkContainer.innerHTML = '';
+            }
+
+            // Create or update host node
+            if (!hostNode) {
+                hostNode = createHostNode(data.host_ip);
+                networkContainer.appendChild(hostNode);
+            }
+
+            // Get container dimensions
+            const containerRect = networkContainer.getBoundingClientRect();
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+            const radius = Math.min(containerRect.width, containerRect.height) * 0.35;
+
+            // Update device nodes
+            const currentDevices = new Set();
+            const devices = Object.values(data.devices).filter(d => !d.is_host);
+            
+            devices.forEach((device, index) => {
+                currentDevices.add(device.ip);
+                
+                if (!deviceNodes.has(device.ip)) {
+                    const node = createDeviceNode(device);
+                    networkContainer.appendChild(node);
+                    deviceNodes.set(device.ip, node);
+                    
+                    // Create connection line
+                    const line = document.createElement('div');
+                    line.className = 'connection-line';
+                    networkContainer.appendChild(line);
+                    connectionLines.set(device.ip, line);
+                }
+                
+                // Position device in a circle around host
+                const angle = (index / devices.length) * 2 * Math.PI;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+                
+                const node = deviceNodes.get(device.ip);
+                node.style.left = `${x - 50}px`;
+                node.style.top = `${y - 50}px`;
+                
+                // Update connection line
+                const line = connectionLines.get(device.ip);
+                const lineLength = Math.sqrt(
+                    Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
+                );
+                const lineAngle = Math.atan2(y - centerY, x - centerX) * 180 / Math.PI;
+                
+                line.style.width = `${lineLength}px`;
+                line.style.left = `${centerX}px`;
+                line.style.top = `${centerY}px`;
+                line.style.transform = `rotate(${lineAngle}deg)`;
+                
+                // Update activity indicator
+                const indicator = node.querySelector('.activity-indicator');
+                if (device.is_active) {
+                    indicator.classList.remove('inactive');
+                    line.classList.add('active');
+                } else {
+                    indicator.classList.add('inactive');
+                    line.classList.remove('active');
+                }
+            });
+
+            // Remove devices that are no longer present
+            deviceNodes.forEach((node, ip) => {
+                if (!currentDevices.has(ip)) {
+                    node.remove();
+                    deviceNodes.delete(ip);
+                    if (connectionLines.has(ip)) {
+                        connectionLines.get(ip).remove();
+                        connectionLines.delete(ip);
+                    }
+                }
+            });
+
+            // Update status bar
+            deviceCountEl.textContent = devices.length;
+            if (data.last_scan) {
+                const date = new Date(data.last_scan * 1000);
+                lastScanEl.textContent = date.toLocaleTimeString();
+            }
+        }
+
+        function createHostNode(ip) {
+            const node = document.createElement('div');
+            node.className = 'host-node';
+            node.innerHTML = `
+                <div class="host-label">HOST</div>
+                <div class="host-ip">${ip}</div>
+            `;
+            return node;
+        }
+
+        function createDeviceNode(device) {
+            const node = document.createElement('div');
+            node.className = 'device-node online';
+            node.innerHTML = `
+                <div class="activity-indicator ${device.is_active ? '' : 'inactive'}"></div>
+                <div class="device-label">${device.hostname || 'Device'}</div>
+                <div class="device-ip">${device.ip}</div>
+            `;
+            return node;
+        }
+
+        function fetchNetworkData() {
+            fetch('/api/network')
+                .then(response => response.json())
+                .then(data => {
+                    updateNetwork(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching network data:', error);
+                });
+        }
+
+        // Initial fetch
+        fetchNetworkData();
+
+        // Update every 2 seconds
+        setInterval(fetchNetworkData, 2000);
+    </script>
+</body>
+</html>
+
