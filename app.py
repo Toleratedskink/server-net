@@ -7,6 +7,7 @@ import psutil
 import threading
 import time
 import platform
+import os
 from collections import defaultdict
 
 app = Flask(__name__)
@@ -85,20 +86,44 @@ def get_arp_table():
     """Get ARP table to find active devices"""
     arp_table = {}
     try:
-        arp_output = subprocess.check_output(['arp', '-a'], timeout=2).decode('utf-8')
-        for line in arp_output.split('\n'):
-            if '(' in line and ')' in line:
-                try:
+        # Try /proc/net/arp first (Linux, more reliable)
+        if platform.system() != 'Darwin' and os.path.exists('/proc/net/arp'):
+            with open('/proc/net/arp', 'r') as f:
+                lines = f.readlines()
+                # Skip header line
+                for line in lines[1:]:
                     parts = line.split()
-                    ip = parts[1].strip('()')
-                    # Validate IP is in our network range
-                    try:
-                        ipaddress.IPv4Address(ip)
-                        arp_table[ip] = True
-                    except:
-                        pass
-                except:
-                    pass
+                    if len(parts) >= 1:
+                        ip = parts[0]
+                        # Check if it's a valid IP and not incomplete (0.0.0.0)
+                        try:
+                            ipaddress.IPv4Address(ip)
+                            if ip != '0.0.0.0':
+                                arp_table[ip] = True
+                        except:
+                            pass
+        else:
+            # Fallback to arp command (macOS or if /proc/net/arp doesn't exist)
+            try:
+                arp_output = subprocess.check_output(['arp', '-a'], timeout=2).decode('utf-8')
+                for line in arp_output.split('\n'):
+                    if '(' in line and ')' in line:
+                        try:
+                            parts = line.split()
+                            ip = parts[1].strip('()')
+                            # Validate IP is in our network range
+                            try:
+                                ipaddress.IPv4Address(ip)
+                                arp_table[ip] = True
+                            except:
+                                pass
+                        except:
+                            pass
+            except FileNotFoundError:
+                print("Warning: 'arp' command not found. ARP table scanning disabled.")
+                print("Install with: sudo apt install net-tools")
+            except Exception as e:
+                print(f"Error reading ARP table: {e}")
     except Exception as e:
         print(f"Error reading ARP table: {e}")
     return arp_table
