@@ -79,7 +79,7 @@ def scan_network(network_range):
         
         # Quick ping to check if device is online
         try:
-            # Use ping with timeout (1 second) - macOS uses -W, Linux uses -w
+            # Use ping with timeout - macOS uses -W, Linux uses -w
             ping_cmd = ['ping', '-c', '1']
             if platform.system() == 'Darwin':  # macOS
                 ping_cmd.extend(['-W', '1000'])  # Timeout in milliseconds
@@ -90,7 +90,8 @@ def scan_network(network_range):
             result = subprocess.run(
                 ping_cmd,
                 capture_output=True,
-                timeout=2
+                timeout=3,
+                stderr=subprocess.DEVNULL
             )
             if result.returncode == 0:
                 # Try to get hostname
@@ -106,7 +107,10 @@ def scan_network(network_range):
                     'status': 'online',
                     'last_seen': time.time()
                 }
-        except:
+        except subprocess.TimeoutExpired:
+            pass
+        except Exception as e:
+            # Silently skip errors for individual IPs
             pass
     
     return devices
@@ -147,8 +151,8 @@ def monitor_network_activity():
                 if interface in prev_net_io:
                     prev_stats = prev_net_io[interface]
                     # Check if there's been traffic
-                    tx_diff = stats.bytes_sent - prev_stats.bytes_sent
-                    rx_diff = stats.bytes_recv - prev_stats.bytes_recv
+                    tx_diff = stats.bytes_sent - prev_stats['bytes_sent']
+                    rx_diff = stats.bytes_recv - prev_stats['bytes_recv']
                     
                     # If there's significant traffic, mark devices in ARP as active
                     if tx_diff > 100 or rx_diff > 100:  # At least 100 bytes change
@@ -190,12 +194,16 @@ def scan_network_periodically():
     
     while True:
         try:
+            print("Starting network scan...")
             devices = scan_network(network_info['network_range'])
             network_info['devices'] = devices
             network_info['last_scan'] = time.time()
-            print(f"Scan complete. Found {len(devices)} devices")
+            device_count = len([d for d in devices.values() if not d.get('is_host', False)])
+            print(f"Scan complete. Found {device_count} device(s) (plus host)")
         except Exception as e:
             print(f"Error scanning network: {e}")
+            import traceback
+            traceback.print_exc()
         
         time.sleep(5)  # Scan every 5 seconds
 

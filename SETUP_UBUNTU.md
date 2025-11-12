@@ -156,13 +156,60 @@ sudo systemctl disable network-monitor.service
 1. Check the logs: `sudo journalctl -u network-monitor.service -n 50`
 2. Verify paths in the service file are correct
 3. Make sure Python dependencies are installed: `pip3 list | grep -E "Flask|psutil"`
-4. Test running manually: `python3 app.py`
+4. Test running manually: `source venv/bin/activate && python3 app.py`
 
 **If you can't access from outside the VM:**
-1. Check if the service is running: `sudo systemctl status network-monitor.service`
-2. Verify firewall: `sudo ufw status`
-3. Check if port is listening: `sudo netstat -tlnp | grep 5000` or `sudo ss -tlnp | grep 5000`
-4. Verify the app is listening on 0.0.0.0 (check app.py line 239)
+
+1. **Verify the app is running and listening on 0.0.0.0:**
+   ```bash
+   # Check if the service is running
+   sudo systemctl status network-monitor.service
+   
+   # Check if port 5000 is listening on all interfaces (0.0.0.0)
+   sudo ss -tlnp | grep 5000
+   # Should show: 0.0.0.0:5000 or :::5000
+   
+   # Alternative command
+   sudo netstat -tlnp | grep 5000
+   ```
+
+2. **Check firewall settings:**
+   ```bash
+   # Check UFW status
+   sudo ufw status
+   
+   # If UFW is active, allow port 5000
+   sudo ufw allow 5000/tcp
+   sudo ufw reload
+   ```
+
+3. **Test from inside the VM first:**
+   ```bash
+   # From inside the VM, test localhost
+   curl http://localhost:5000
+   
+   # Or test with the VM's IP
+   curl http://10.251.152.156:5000
+   ```
+
+4. **Verify the app is configured correctly:**
+   - The app should be listening on `0.0.0.0:5000` (already configured in app.py)
+   - When you start the app, you should see messages like:
+     ```
+     Starting server on 0.0.0.0:5000
+     Access from outside VM: http://10.251.152.156:5000
+     ```
+
+5. **Check VM network configuration:**
+   - Make sure the VM's network adapter is in bridge mode (not NAT) if you want external access
+   - Verify the VM can reach other devices on the network
+
+6. **Test from your local machine:**
+   ```bash
+   # From your local machine (outside the VM)
+   curl http://10.251.152.156:5000
+   # Or open in browser: http://10.251.152.156:5000
+   ```
 
 **If network scanning doesn't work:**
 - The app may need root privileges for some network operations
