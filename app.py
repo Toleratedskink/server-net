@@ -81,54 +81,92 @@ def get_network_range(ip):
         # Default to /24
         return f"{ip}/24"
 
+def get_arp_table():
+    """Get ARP table to find active devices"""
+    arp_table = {}
+    try:
+        arp_output = subprocess.check_output(['arp', '-a'], timeout=2).decode('utf-8')
+        for line in arp_output.split('\n'):
+            if '(' in line and ')' in line:
+                try:
+                    parts = line.split()
+                    ip = parts[1].strip('()')
+                    # Validate IP is in our network range
+                    try:
+                        ipaddress.IPv4Address(ip)
+                        arp_table[ip] = True
+                    except:
+                        pass
+                except:
+                    pass
+    except Exception as e:
+        print(f"Error reading ARP table: {e}")
+    return arp_table
+
 def scan_network(network_range):
     """Scan the network for active devices"""
     devices = {}
     network = ipaddress.IPv4Network(network_range, strict=False)
     
-    # Get current network stats for activity detection
-    current_stats = {}
-    for interface, addrs in psutil.net_if_addrs().items():
-        try:
-            if stats := psutil.net_io_counters(pernic=True).get(interface, None):
-                current_stats[interface] = {
-                    'bytes_sent': stats.bytes_sent,
-                    'bytes_recv': stats.bytes_recv
-                }
-        except:
-            pass
+    # Add host device first
+    devices[SERVER_IP] = {
+        'ip': SERVER_IP,
+        'hostname': socket.gethostname(),
+        'is_host': True,
+        'status': 'online',
+        'last_seen': time.time()
+    }
     
-    # Scan each IP in the network
-    for ip in network.hosts():
-        ip_str = str(ip)
-        if ip_str == SERVER_IP:
-            devices[ip_str] = {
-                'ip': ip_str,
-                'hostname': socket.gethostname(),
-                'is_host': True,
+    # Method 1: Check ARP table first (most reliable, no ping needed)
+    print("Checking ARP table...")
+    arp_table = get_arp_table()
+    arp_count = 0
+    for ip in arp_table:
+        if ip != SERVER_IP and ipaddress.IPv4Address(ip) in network:
+            try:
+                hostname = socket.gethostbyaddr(ip)[0]
+            except:
+                hostname = ip
+            devices[ip] = {
+                'ip': ip,
+                'hostname': hostname,
+                'is_host': False,
                 'status': 'online',
                 'last_seen': time.time()
             }
+            arp_count += 1
+    print(f"Found {arp_count} device(s) in ARP table")
+    
+    # Method 2: Quick ping scan for additional devices (faster timeout)
+    print("Scanning network with ping (this may take a while)...")
+    ping_found = 0
+    total_ips = len(list(network.hosts()))
+    scanned = 0
+    
+    for ip in network.hosts():
+        ip_str = str(ip)
+        scanned += 1
+        
+        # Skip if already found in ARP or is host
+        if ip_str in devices or ip_str == SERVER_IP:
             continue
         
-        # Quick ping to check if device is online
+        # Quick ping with shorter timeout
         try:
-            # Use ping with timeout - macOS uses -W, Linux uses -w
             ping_cmd = ['ping', '-c', '1']
             if platform.system() == 'Darwin':  # macOS
-                ping_cmd.extend(['-W', '1000'])  # Timeout in milliseconds
+                ping_cmd.extend(['-W', '500'])  # 500ms timeout
             else:  # Linux
-                ping_cmd.extend(['-w', '1'])  # Timeout in seconds
+                ping_cmd.extend(['-w', '1'])  # 1 second timeout
             ping_cmd.append(ip_str)
             
             result = subprocess.run(
                 ping_cmd,
                 capture_output=True,
-                timeout=3,
+                timeout=2,
                 stderr=subprocess.DEVNULL
             )
             if result.returncode == 0:
-                # Try to get hostname
                 try:
                     hostname = socket.gethostbyaddr(ip_str)[0]
                 except:
@@ -141,12 +179,16 @@ def scan_network(network_range):
                     'status': 'online',
                     'last_seen': time.time()
                 }
-        except subprocess.TimeoutExpired:
+                ping_found += 1
+                print(f"  Found device: {ip_str} ({hostname})")
+        except:
             pass
-        except Exception as e:
-            # Silently skip errors for individual IPs
-            pass
+        
+        # Progress indicator every 50 IPs
+        if scanned % 50 == 0:
+            print(f"  Scanned {scanned}/{total_ips} IPs...")
     
+    print(f"Ping scan found {ping_found} additional device(s)")
     return devices
 
 def monitor_network_activity():
@@ -224,22 +266,31 @@ def scan_network_periodically():
     # Initialize network range
     if network_info['network_range'] is None:
         network_info['network_range'] = get_network_range(SERVER_IP)
+        print(f"Server IP: {SERVER_IP}")
         print(f"Network range: {network_info['network_range']}")
+        print(f"Will scan {len(list(ipaddress.IPv4Network(network_info['network_range'], strict=False).hosts()))} IP addresses")
     
     while True:
         try:
+            print("\n" + "="*50)
             print("Starting network scan...")
             devices = scan_network(network_info['network_range'])
             network_info['devices'] = devices
             network_info['last_scan'] = time.time()
             device_count = len([d for d in devices.values() if not d.get('is_host', False)])
-            print(f"Scan complete. Found {device_count} device(s) (plus host)")
+            print(f"\nScan complete. Found {device_count} device(s) (plus host)")
+            if device_count > 0:
+                print("Devices found:")
+                for ip, device in devices.items():
+                    if not device.get('is_host', False):
+                        print(f"  - {device['ip']} ({device['hostname']})")
+            print("="*50)
         except Exception as e:
             print(f"Error scanning network: {e}")
             import traceback
             traceback.print_exc()
         
-        time.sleep(5)  # Scan every 5 seconds
+        time.sleep(10)  # Scan every 10 seconds (increased since ARP is fast)
 
 @app.route('/')
 def index():
