@@ -1,0 +1,17 @@
+[Unit]
+Description=Network Monitor Application
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/server-net
+ExecStart=/usr/bin/python3 /path/to/server-net/app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
